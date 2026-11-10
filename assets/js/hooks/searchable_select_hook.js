@@ -46,7 +46,25 @@ export const SearchableSelectHook = {
       return Math.ceil(Math.max(triggerWidth, maxOption + optionPad))
     }
 
-    const positionPanel = () => {
+    const resetPanelStyles = (p) => {
+      p.style.position = ""
+      p.style.width = ""
+      p.style.minWidth = ""
+      p.style.maxWidth = ""
+      p.style.left = ""
+      p.style.top = ""
+    }
+
+    // Measure in the panel's natural (non-fixed, unsized) layout. Measuring an
+    // already-sized panel feeds its own width back through option scrollWidth,
+    // growing it on every scroll/reposition.
+    const measurePanelWidth = () => {
+      resetPanelStyles(panel())
+      this._panelWidth = panelContentWidth()
+    }
+
+    const positionPanel = ({ remeasure = false } = {}) => {
+      if (remeasure || !this._panelWidth) measurePanelWidth()
       const rect = trigger().getBoundingClientRect()
       const p = panel()
       const listEl = list()
@@ -55,7 +73,7 @@ export const SearchableSelectHook = {
       const spaceBelow = viewportH - rect.bottom - margin
       const spaceAbove = rect.top - margin
       const placeAbove = spaceBelow < 200 && spaceAbove > spaceBelow
-      const width = panelContentWidth()
+      const width = this._panelWidth
 
       p.style.position = "fixed"
       p.style.zIndex = "9999"
@@ -79,7 +97,7 @@ export const SearchableSelectHook = {
     const openPanel = () => {
       this._open = true
       panel().classList.remove("hidden")
-      positionPanel()
+      positionPanel({ remeasure: true })
       trigger().setAttribute("aria-expanded", "true")
       if (search()) {
         search().value = ""
@@ -92,20 +110,19 @@ export const SearchableSelectHook = {
       this._open = false
       const p = panel()
       p.classList.add("hidden")
-      p.style.position = ""
-      p.style.width = ""
-      p.style.minWidth = ""
-      p.style.maxWidth = ""
-      p.style.left = ""
-      p.style.top = ""
+      resetPanelStyles(p)
+      this._panelWidth = null
       trigger().setAttribute("aria-expanded", "false")
     }
 
     this._reposition = () => {
       if (this._open) positionPanel()
     }
+    this._resize = () => {
+      if (this._open) positionPanel({ remeasure: true })
+    }
     window.addEventListener("scroll", this._reposition, true)
-    window.addEventListener("resize", this._reposition)
+    window.addEventListener("resize", this._resize)
 
     const selectOption = (value, label) => {
       hidden().value = value
@@ -197,7 +214,7 @@ export const SearchableSelectHook = {
 
     if (this._open && panel) {
       panel.classList.remove("hidden")
-      if (this._positionPanel) this._positionPanel()
+      if (this._positionPanel) this._positionPanel({ remeasure: true })
       if (this._filter) this._filter(this._search || "")
     }
 
@@ -215,10 +232,8 @@ export const SearchableSelectHook = {
   },
   destroyed() {
     if (this._outsideClick) document.removeEventListener("click", this._outsideClick, true)
-    if (this._reposition) {
-      window.removeEventListener("scroll", this._reposition, true)
-      window.removeEventListener("resize", this._reposition)
-    }
+    if (this._reposition) window.removeEventListener("scroll", this._reposition, true)
+    if (this._resize) window.removeEventListener("resize", this._resize)
     clearTimeout(this._searchTimer)
   }
 }

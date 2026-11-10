@@ -107,6 +107,30 @@ test.describe("System Config", () => {
       await expect(page.locator(SEL.imageToTextForm)).not.toBeVisible()
     })
 
+    test("provider select panel keeps its width while the option list scrolls", async ({ page }) => {
+      await expect(async () => {
+        await page.locator('[phx-click="new_ai_credential"]').click()
+        await expect(page.locator("#ai-credential-form")).toBeVisible({ timeout: 2_000 })
+      }).toPass({ timeout: process.env.CI ? 20_000 : 15_000 })
+
+      const root = "#ai-credential-provider-select"
+      const panel = page.locator(`${root} [data-select-panel]`)
+      const list = page.locator(`${root} [data-select-list]`)
+
+      await page.locator(`${root} [data-select-trigger]`).click()
+      await expect(panel).toBeVisible()
+      const initialWidth = (await panel.boundingBox()).width
+
+      for (let step = 1; step <= 5; step += 1) {
+        await list.evaluate((el, top) => {
+          el.scrollTop = top
+          el.dispatchEvent(new Event("scroll"))
+        }, step * 40)
+      }
+
+      await expect.poll(async () => (await panel.boundingBox()).width).toBe(initialWidth)
+    })
+
     test("global LLM controls are no longer exposed", async ({ page }) => {
       await expect(page.locator('[phx-value-tab="llm"]')).toHaveCount(0)
       await expect(page.locator('#llm-config-form')).toHaveCount(0)
